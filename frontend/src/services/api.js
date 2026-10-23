@@ -17,13 +17,16 @@ api.interceptors.request.use((config) => {
 });
 
 // If the backend responds 401 (invalid/expired token, or deactivated account),
-// clear the stored session. Components/ProtectedRoute handle the redirect.
+// clear the stored session (unless it was an invalid password attempt on login).
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+      const isLoginRoute = error.config?.url?.includes("/auth/login");
+      if (!isLoginRoute) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+      }
     }
     return Promise.reject(error);
   }

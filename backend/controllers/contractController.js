@@ -1,5 +1,6 @@
 const Contract = require("../models/Contract");
 const User = require("../models/User");
+const { createNotification } = require("./notificationController");
 
 // Statuses where the contract is closed
 const CLOSED_STATUSES = ["Rejected", "Cancelled", "Completed"];
@@ -9,6 +10,10 @@ const CLOSED_STATUSES = ["Rejected", "Cancelled", "Completed"];
 // @access  Private (buyer only)
 const createContract = async (req, res) => {
   try {
+    if (req.user.role !== "buyer") {
+      return res.status(403).json({ message: "Only buyers are authorized to initiate/propose a contract request." });
+    }
+
     const {
       farmerId,
       cropName,
@@ -30,7 +35,6 @@ const createContract = async (req, res) => {
       });
     }
 
-    // Validate selected farmer
     const selectedFarmer = await User.findById(farmerId);
     if (!selectedFarmer) {
       return res.status(404).json({ message: "Selected farmer not found" });
@@ -71,8 +75,18 @@ const createContract = async (req, res) => {
       location,
       additionalRequirements: additionalRequirements || "",
       status: "Pending",
+      statusHistory: [{ status: "Pending", timestamp: new Date() }],
       paymentStatus: "Pending",
     });
+
+    // Trigger Notification for the selected Farmer
+    await createNotification(
+      farmerId,
+      "New Contract Proposal Received",
+      `Buyer ${req.user.name} created a new contract proposal for ${cropName} (${quantity} ${unit || "kg"}).`,
+      "contract_event",
+      contract._id
+    );
 
     return res.status(201).json({ message: "Contract created successfully", contract });
   } catch (error) {
@@ -80,7 +94,7 @@ const createContract = async (req, res) => {
   }
 };
 
-// @desc    Get contracts relevant to the logged-in user's role
+// @desc    Get contracts relevant to the logged-in user's role with search & filter support
 // @route   GET /api/contracts
 // @access  Private
 const getContracts = async (req, res) => {
@@ -94,9 +108,24 @@ const getContracts = async (req, res) => {
     }
     // Admin sees all contracts
 
+    // Search query filter (search by cropName or contract ID)
+    if (req.query.search && req.query.search.trim()) {
+      const searchRegex = new RegExp(req.query.search.trim(), "i");
+      if (req.query.search.trim().match(/^[0-9a-fA-F]{24}$/)) {
+        filter._id = req.query.search.trim();
+      } else {
+        filter.cropName = searchRegex;
+      }
+    }
+
+    // Status query filter
+    if (req.query.status && req.query.status.trim() && req.query.status !== "All") {
+      filter.status = req.query.status.trim();
+    }
+
     const contracts = await Contract.find(filter)
-      .populate("buyer", "name email phone businessName profileImage")
-      .populate("farmer", "name email phone farmDetails profileImage")
+      .populate("buyer", "name email phone address businessName businessPhotos profileImage verificationStatus")
+      .populate("farmer", "name email phone address farmDetails profileImage verificationStatus")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({ count: contracts.length, contracts });
@@ -111,8 +140,8 @@ const getContracts = async (req, res) => {
 const getContractById = async (req, res) => {
   try {
     const contract = await Contract.findById(req.params.id)
-      .populate("buyer", "name email phone businessName profileImage")
-      .populate("farmer", "name email phone farmDetails profileImage");
+      .populate("buyer", "name email phone address businessName businessPhotos profileImage verificationStatus")
+      .populate("farmer", "name email phone address farmDetails profileImage verificationStatus");
 
     if (!contract) {
       return res.status(404).json({ message: "Contract not found" });
@@ -152,7 +181,17 @@ const acceptContract = async (req, res) => {
     }
 
     contract.status = "Accepted";
+    contract.statusHistory.push({ status: "Accepted", timestamp: new Date() });
     await contract.save();
+
+    // Trigger Notification for the Buyer
+    await createNotification(
+      contract.buyer,
+      "Contract Proposal Accepted",
+      `Farmer ${req.user.name} accepted your contract proposal for ${contract.cropName}.`,
+      "contract_event",
+      contract._id
+    );
 
     return res.status(200).json({ message: "Contract accepted", contract });
   } catch (error) {
@@ -179,7 +218,17 @@ const rejectContract = async (req, res) => {
     }
 
     contract.status = "Rejected";
+    contract.statusHistory.push({ status: "Rejected", timestamp: new Date() });
     await contract.save();
+
+    // Trigger Notification for the Buyer
+    await createNotification(
+      contract.buyer,
+      "Contract Proposal Rejected",
+      `Farmer ${req.user.name} rejected your contract proposal for ${contract.cropName}.`,
+      "contract_event",
+      contract._id
+    );
 
     return res.status(200).json({ message: "Contract proposal rejected", contract });
   } catch (error) {
@@ -220,9 +269,19 @@ const addProgress = async (req, res) => {
 
     if (contract.status === "Accepted") {
       contract.status = "In Progress";
+      contract.statusHistory.push({ status: "In Progress", timestamp: new Date() });
     }
 
     await contract.save();
+
+    // Trigger Notification for the Buyer
+    await createNotification(
+      contract.buyer,
+      "New Crop Progress Update",
+      `Farmer ${req.user.name} added a progress update for ${contract.cropName}: "${note.trim()}".`,
+      "contract_event",
+      contract._id
+    );
 
     return res.status(200).json({ message: "Progress update added successfully", contract });
   } catch (error) {
@@ -249,7 +308,17 @@ const markReady = async (req, res) => {
     }
 
     contract.status = "Ready for Delivery";
+    contract.statusHistory.push({ status: "Ready for Delivery", timestamp: new Date() });
     await contract.save();
+
+    // Trigger Notification for the Buyer
+    await createNotification(
+      contract.buyer,
+      "Crop Marked Ready for Delivery",
+      `Farmer ${req.user.name} marked ${contract.cropName} as Ready for Delivery.`,
+      "contract_event",
+      contract._id
+    );
 
     return res.status(200).json({ message: "Contract marked ready for delivery", contract });
   } catch (error) {
@@ -276,7 +345,17 @@ const dispatchContract = async (req, res) => {
     }
 
     contract.status = "Dispatched";
+    contract.statusHistory.push({ status: "Dispatched", timestamp: new Date() });
     await contract.save();
+
+    // Trigger Notification for the Buyer
+    await createNotification(
+      contract.buyer,
+      "Crop Dispatched",
+      `Farmer ${req.user.name} dispatched the shipment for ${contract.cropName}.`,
+      "contract_event",
+      contract._id
+    );
 
     return res.status(200).json({ message: "Contract dispatched successfully", contract });
   } catch (error) {
@@ -303,7 +382,17 @@ const confirmDelivery = async (req, res) => {
     }
 
     contract.status = "Delivered";
+    contract.statusHistory.push({ status: "Delivered", timestamp: new Date() });
     await contract.save();
+
+    // Trigger Notification for the Farmer
+    await createNotification(
+      contract.farmer,
+      "Buyer Confirmed Delivery",
+      `Buyer ${req.user.name} confirmed receipt of delivery for ${contract.cropName}.`,
+      "contract_event",
+      contract._id
+    );
 
     return res.status(200).json({ message: "Delivery confirmed", contract });
   } catch (error) {
@@ -330,7 +419,17 @@ const completeContract = async (req, res) => {
     }
 
     contract.status = "Completed";
+    contract.statusHistory.push({ status: "Completed", timestamp: new Date() });
     await contract.save();
+
+    // Trigger Notification for the Farmer
+    await createNotification(
+      contract.farmer,
+      "Contract Completed",
+      `Buyer ${req.user.name} marked contract ${contract.cropName} as Completed.`,
+      "contract_event",
+      contract._id
+    );
 
     return res.status(200).json({ message: "Contract marked completed", contract });
   } catch (error) {
@@ -363,6 +462,15 @@ const initiatePayment = async (req, res) => {
     contract.paymentStatus = "Initiated";
     await contract.save();
 
+    // Trigger Notification for the Farmer
+    await createNotification(
+      contract.farmer,
+      "Payment Initiated by Buyer",
+      `Buyer ${req.user.name} initiated payment of ₹${contract.totalAmount} for ${contract.cropName}. Please confirm receipt when received.`,
+      "contract_event",
+      contract._id
+    );
+
     return res.status(200).json({ message: "Payment initiated successfully", contract });
   } catch (error) {
     return res.status(500).json({ message: "Server error initiating payment", error: error.message });
@@ -387,8 +495,17 @@ const confirmPayment = async (req, res) => {
       return res.status(400).json({ message: "Payment must be 'Initiated' by buyer before farmer can confirm receipt" });
     }
 
-    contract.paymentStatus = "Paid"; // Final state confirmed by recipient
+    contract.paymentStatus = "Paid";
     await contract.save();
+
+    // Trigger Notification for the Buyer
+    await createNotification(
+      contract.buyer,
+      "Farmer Confirmed Payment Receipt",
+      `Farmer ${req.user.name} confirmed receipt of payment for ${contract.cropName}. Payment status is now Paid.`,
+      "contract_event",
+      contract._id
+    );
 
     return res.status(200).json({ message: "Payment receipt confirmed. Status marked Paid.", contract });
   } catch (error) {
@@ -424,7 +541,17 @@ const cancelContract = async (req, res) => {
     }
 
     contract.status = "Cancelled";
+    contract.statusHistory.push({ status: "Cancelled", timestamp: new Date() });
     await contract.save();
+
+    // Trigger Notification for the Farmer
+    await createNotification(
+      contract.farmer,
+      "Contract Cancelled",
+      `Contract for ${contract.cropName} was cancelled by ${isAdmin ? "System Admin" : "Buyer " + req.user.name}.`,
+      "contract_event",
+      contract._id
+    );
 
     return res.status(200).json({ message: "Contract cancelled successfully", contract });
   } catch (error) {

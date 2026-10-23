@@ -9,6 +9,8 @@ const {
   getAllUsers,
   updateUserStatus,
   deleteUser,
+  getVerificationUsers,
+  updateVerificationStatus,
 } = require("../controllers/userController");
 const { protect } = require("../middleware/authMiddleware");
 const { authorizeRoles } = require("../middleware/roleMiddleware");
@@ -27,6 +29,8 @@ router.post("/me/business-photos", protect, authorizeRoles("buyer"), upload.sing
 router.get("/farmers", protect, getActiveFarmers);
 
 // Admin-only routes
+router.get("/verification", protect, authorizeRoles("admin"), getVerificationUsers);
+router.put("/:id/verification", protect, authorizeRoles("admin"), updateVerificationStatus);
 router.get("/", protect, authorizeRoles("admin"), getAllUsers);
 router.put("/:id/status", protect, authorizeRoles("admin"), updateUserStatus);
 router.delete("/:id", protect, authorizeRoles("admin"), deleteUser);

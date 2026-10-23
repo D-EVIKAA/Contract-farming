@@ -28,10 +28,15 @@ const updateMyProfile = async (req, res) => {
     if (address !== undefined) user.address = address;
 
     if (user.role === "farmer" && farmDetails) {
+      const existingFarmDetails = user.farmDetails && typeof user.farmDetails.toObject === "function"
+        ? user.farmDetails.toObject()
+        : (user.farmDetails || {});
+
       user.farmDetails = {
-        ...user.farmDetails.toObject(),
+        ...existingFarmDetails,
         ...farmDetails,
       };
+      user.markModified("farmDetails");
     }
     if (user.role === "buyer" && businessName !== undefined) {
       user.businessName = businessName;
@@ -63,6 +68,10 @@ const uploadProfilePicture = async (req, res) => {
       { new: true }
     ).select("-password");
 
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     return res.status(200).json({ message: "Profile picture uploaded successfully", user });
   } catch (error) {
     return res.status(500).json({ message: "Server error uploading profile picture", error: error.message });
@@ -81,6 +90,10 @@ const uploadFarmPhoto = async (req, res) => {
     const imagePath = `/uploads/${req.file.filename}`;
     const user = await User.findById(req.user._id);
 
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     if (user.role !== "farmer") {
       return res.status(403).json({ message: "Only farmers can upload farm photos" });
     }
@@ -93,6 +106,7 @@ const uploadFarmPhoto = async (req, res) => {
     }
 
     user.farmDetails.farmPhotos.push(imagePath);
+    user.markModified("farmDetails");
     await user.save();
 
     const updatedUser = user.toObject();
@@ -116,6 +130,10 @@ const uploadBusinessPhoto = async (req, res) => {
     const imagePath = `/uploads/${req.file.filename}`;
     const user = await User.findById(req.user._id);
 
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     if (user.role !== "buyer") {
       return res.status(403).json({ message: "Only buyers can upload business photos" });
     }
@@ -125,6 +143,7 @@ const uploadBusinessPhoto = async (req, res) => {
     }
 
     user.businessPhotos.push(imagePath);
+    user.markModified("businessPhotos");
     await user.save();
 
     const updatedUser = user.toObject();
@@ -141,7 +160,45 @@ const uploadBusinessPhoto = async (req, res) => {
 // @access  Private (authenticated users: buyer, farmer, admin)
 const getActiveFarmers = async (req, res) => {
   try {
-    const farmers = await User.find({ role: "farmer", isActive: true })
+    const { search, location, crop } = req.query;
+    let conditions = [{ role: "farmer", isActive: true }];
+
+    if (search) {
+      const searchRegex = new RegExp(search, "i");
+      conditions.push({
+        $or: [
+          { name: searchRegex },
+          { email: searchRegex },
+          { address: searchRegex },
+          { "farmDetails.cropsGrown": searchRegex },
+          { "farmDetails.location": searchRegex },
+        ],
+      });
+    }
+
+    if (location) {
+      const locRegex = new RegExp(location, "i");
+      conditions.push({
+        $or: [
+          { address: locRegex },
+          { "farmDetails.location": locRegex },
+        ],
+      });
+    }
+
+    if (crop) {
+      const cropRegex = new RegExp(crop, "i");
+      conditions.push({
+        $or: [
+          { "farmDetails.cropsGrown": cropRegex },
+          { "farmDetails.crops": cropRegex },
+        ],
+      });
+    }
+
+    const queryFilter = conditions.length === 1 ? conditions[0] : { $and: conditions };
+
+    const farmers = await User.find(queryFilter)
       .select("-password")
       .sort({ name: 1 });
 
@@ -216,6 +273,53 @@ const deleteUser = async (req, res) => {
   }
 };
 
+// @desc    Get users for verification review
+// @route   GET /api/users/verification
+// @access  Private (admin only)
+const getVerificationUsers = async (req, res) => {
+  try {
+    const { status, role } = req.query;
+    let query = { role: { $ne: "admin" } };
+    if (status && status !== "All") {
+      query.verificationStatus = status;
+    }
+    if (role && role !== "All") {
+      query.role = role;
+    }
+
+    const users = await User.find(query).select("-password").sort({ createdAt: -1 });
+    return res.status(200).json({ count: users.length, users });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error fetching verification users", error: error.message });
+  }
+};
+
+// @desc    Verify or reject a user profile
+// @route   PUT /api/users/:id/verification
+// @access  Private (admin only)
+const updateVerificationStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!["Pending", "Verified", "Rejected"].includes(status)) {
+      return res.status(400).json({ message: "Invalid verification status. Must be Pending, Verified, or Rejected." });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { verificationStatus: status },
+      { new: true }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({ message: `User verification status updated to ${status}`, user });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error updating verification status", error: error.message });
+  }
+};
+
 module.exports = {
   getMyProfile,
   updateMyProfile,
@@ -226,4 +330,6 @@ module.exports = {
   getAllUsers,
   updateUserStatus,
   deleteUser,
+  getVerificationUsers,
+  updateVerificationStatus,
 };

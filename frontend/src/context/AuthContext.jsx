@@ -13,10 +13,32 @@ export const AuthProvider = ({ children }) => {
     const storedUser = localStorage.getItem("user");
     const storedToken = localStorage.getItem("token");
     if (storedUser && storedToken) {
-      setUser(JSON.parse(storedUser));
+      try {
+        if (storedUser !== "undefined" && storedUser !== "null") {
+          setUser(JSON.parse(storedUser));
+        }
+      } catch (e) {
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
+      }
+      // Sync fresh profile from backend
+      api.get("/users/me").then(({ data }) => {
+        if (data?.user) {
+          localStorage.setItem("user", JSON.stringify(data.user));
+          setUser(data.user);
+        }
+      }).catch(() => {});
     }
     setLoading(false);
   }, []);
+
+  // Updates current logged-in user in state & localStorage without re-authenticating
+  const updateUser = (updatedUserDoc) => {
+    if (updatedUserDoc) {
+      localStorage.setItem("user", JSON.stringify(updatedUserDoc));
+      setUser(updatedUserDoc);
+    }
+  };
 
   // Calls POST /api/auth/login (Phase 3 authController.loginUser)
   const login = async (email, password) => {
@@ -44,7 +66,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

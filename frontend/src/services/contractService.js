@@ -1,8 +1,8 @@
 import api from "./api";
 
 // GET /api/contracts
-export const getContracts = async () => {
-  const { data } = await api.get("/contracts");
+export const getContracts = async (params = {}) => {
+  const { data } = await api.get("/contracts", { params });
   return data.contracts;
 };
 
@@ -34,9 +34,7 @@ export const rejectContract = async (id) => {
 export const addProgressNote = async (id, payload) => {
   let response;
   if (payload instanceof FormData) {
-    response = await api.put(`/contracts/${id}/progress`, payload, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    response = await api.put(`/contracts/${id}/progress`, payload);
   } else {
     response = await api.put(`/contracts/${id}/progress`, { note: payload });
   }

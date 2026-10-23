@@ -26,7 +26,12 @@ const seedAdmin = async () => {
 
     const existingAdmin = await User.findOne({ email: adminEmail.toLowerCase() });
     if (existingAdmin) {
-      console.log(`An account already exists for ${adminEmail}. No new admin was created.`);
+      const salt = await bcrypt.genSalt(10);
+      existingAdmin.password = await bcrypt.hash(adminPassword, salt);
+      existingAdmin.role = "admin";
+      existingAdmin.isActive = true;
+      await existingAdmin.save();
+      console.log(`Admin account password updated successfully for ${adminEmail}.`);
       process.exit(0);
     }
 

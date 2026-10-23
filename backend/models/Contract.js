@@ -85,6 +85,12 @@ const contractSchema = new mongoose.Schema(
       default: "Pending",
     },
     progressUpdates: [progressUpdateSchema],
+    statusHistory: [
+      {
+        status: { type: String, required: true },
+        timestamp: { type: Date, default: Date.now },
+      },
+    ],
     paymentStatus: {
       type: String,
       enum: ["Pending", "Initiated", "Confirmed", "Paid"],

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { T } from "./common/SpeakableWord";
 
 const DisputeModal = ({ contract, onClose, onSubmit, submitting }) => {
   const [title, setTitle] = useState("");
@@ -26,16 +27,16 @@ const DisputeModal = ({ contract, onClose, onSubmit, submitting }) => {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <h2>Raise Dispute</h2>
+        <h2><T>Raise Dispute</T></h2>
         <p className="auth-subtitle">
-          Contract: <strong>{contract.cropName}</strong> ({contract._id})
+          <T>Contract</T>: <strong><T>{contract.cropName}</T></strong> ({contract._id})
         </p>
 
         {error && <div className="form-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <label className="field">
-            <span>Dispute Title</span>
+            <span><T>Dispute Title</T></span>
             <input
               type="text"
               value={title}
@@ -46,7 +47,7 @@ const DisputeModal = ({ contract, onClose, onSubmit, submitting }) => {
           </label>
 
           <label className="field">
-            <span>Description</span>
+            <span><T>Description</T></span>
             <textarea
               rows={4}
               value={description}
@@ -58,10 +59,10 @@ const DisputeModal = ({ contract, onClose, onSubmit, submitting }) => {
 
           <div className="modal-actions">
             <button type="button" className="btn btn-outline" onClick={onClose} disabled={submitting}>
-              Cancel
+              <T>Cancel</T>
             </button>
             <button type="submit" className="btn btn-danger" disabled={submitting}>
-              {submitting ? "Submitting..." : "Submit Dispute"}
+              {submitting ? <T>Submitting...</T> : <T>Submit Dispute</T>}
             </button>
           </div>
         </form>

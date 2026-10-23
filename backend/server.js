@@ -8,6 +8,9 @@ const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const contractRoutes = require("./routes/contractRoutes");
 const disputeRoutes = require("./routes/disputeRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+const paymentRoutes = require("./routes/paymentRoutes");
 
 // Load environment variables from .env
 dotenv.config();
@@ -19,7 +22,8 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json()); // allows Express to read JSON request bodies
+app.use(express.json({ limit: "15mb" })); // allows Express to read JSON request bodies up to 15MB
+app.use(express.urlencoded({ limit: "15mb", extended: true }));
 
 // Static file serving for uploads directory
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -34,10 +38,25 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/contracts", contractRoutes);
 app.use("/api/disputes", disputeRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/payments", paymentRoutes);
 
 // Catch-all for unknown routes
-app.use((req, res) => {
+app.use((req, res, next) => {
   res.status(404).json({ message: "Route not found" });
+});
+
+// Express error handling middleware (handles Multer errors, file size/type errors, etc.)
+app.use((err, req, res, next) => {
+  if (err) {
+    const statusCode = err.status || err.statusCode || 400;
+    return res.status(statusCode).json({
+      message: err.message || "File upload or server error",
+      error: err.message,
+    });
+  }
+  next();
 });
 
 const PORT = process.env.PORT || 5000;

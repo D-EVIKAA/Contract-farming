@@ -37,8 +37,8 @@ export const uploadBusinessPhoto = async (formData) => {
 };
 
 // GET /api/users/farmers (Buyer, Farmer, Admin)
-export const getActiveFarmers = async () => {
-  const { data } = await api.get("/users/farmers");
+export const getActiveFarmers = async (params = {}) => {
+  const { data } = await api.get("/users/farmers", { params });
   return data.farmers;
 };
 
@@ -58,4 +58,16 @@ export const updateUserStatus = async (id, isActive) => {
 export const deleteUser = async (id) => {
   const { data } = await api.delete(`/users/${id}`);
   return data;
+};
+
+// GET /api/users/verification (Admin only)
+export const getVerificationUsers = async (params = {}) => {
+  const { data } = await api.get("/users/verification", { params });
+  return data.users;
+};
+
+// PUT /api/users/:id/verification (Admin only)
+export const updateVerificationStatus = async (userId, status) => {
+  const { data } = await api.put(`/users/${userId}/verification`, { status });
+  return data.user;
 };

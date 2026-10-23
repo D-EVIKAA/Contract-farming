@@ -42,6 +42,7 @@ const userSchema = new mongoose.Schema(
       farmSize: { type: String, default: "" },
       soilType: { type: String, default: "" },
       cropsGrown: { type: String, default: "" },
+      location: { type: String, default: "" },
       farmPhotos: [{ type: String }],
     },
     // Only relevant when role === "buyer"
@@ -54,6 +55,38 @@ const userSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true, // used by admin to block/unblock users
+    },
+    verificationStatus: {
+      type: String,
+      enum: ["Pending", "Verified", "Rejected"],
+      default: "Pending",
+    },
+    // Aadhaar Identity Verification Module (Demo/Sandbox)
+    aadhaarVerified: {
+      type: Boolean,
+      default: false,
+    },
+    aadhaarLast4: {
+      type: String,
+      default: null,
+    },
+    aadhaarHash: {
+      type: String,
+      default: null,
+      select: false, // Never return full hash in default queries
+    },
+    aadhaarVerificationDetails: {
+      status: {
+        type: String,
+        enum: ["Unverified", "Pending", "Verified", "Failed", "Expired", "Cancelled"],
+        default: "Unverified",
+      },
+      provider: { type: String, default: null }, // e.g. "Surepass", "Cashfree", "Sandbox"
+      referenceId: { type: String, default: null },
+      verifiedAt: { type: Date, default: null },
+      verifiedName: { type: String, default: null },
+      failureReason: { type: String, default: null },
+      isSandbox: { type: Boolean, default: false },
     },
   },
   {

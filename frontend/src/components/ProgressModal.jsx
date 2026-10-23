@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { T } from "./common/SpeakableWord";
 
 const ProgressModal = ({ contract, onClose, onSubmit, submitting }) => {
   const [note, setNote] = useState("");
@@ -26,16 +27,16 @@ const ProgressModal = ({ contract, onClose, onSubmit, submitting }) => {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <h2>Add Progress Update</h2>
+        <h2><T>Add Progress Update</T></h2>
         <p className="auth-subtitle">
-          Contract: <strong>{contract.cropName}</strong>
+          <T>Contract</T>: <strong><T>{contract.cropName}</T></strong>
         </p>
 
         {error && <div className="form-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <label className="field">
-            <span>Progress Note</span>
+            <span><T>Progress Note</T></span>
             <textarea
               rows={4}
               value={note}
@@ -46,7 +47,7 @@ const ProgressModal = ({ contract, onClose, onSubmit, submitting }) => {
           </label>
 
           <label className="field">
-            <span>Progress Photo Evidence (Optional)</span>
+            <span><T>Progress Photo Evidence (Optional)</T></span>
             <input
               type="file"
               accept="image/*"
@@ -56,10 +57,10 @@ const ProgressModal = ({ contract, onClose, onSubmit, submitting }) => {
 
           <div className="modal-actions">
             <button type="button" className="btn btn-outline" onClick={onClose} disabled={submitting}>
-              Cancel
+              <T>Cancel</T>
             </button>
             <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {submitting ? "Saving..." : "Save Progress"}
+              {submitting ? <T>Saving...</T> : <T>Save Progress</T>}
             </button>
           </div>
         </form>

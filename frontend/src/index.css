@@ -629,7 +629,8 @@ a:hover {
 }
 
 /* Modals */
-.modal-overlay {
+.modal-overlay,
+.modal-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(31, 42, 30, 0.45);
@@ -639,7 +640,8 @@ a:hover {
   padding: 1.5rem;
   z-index: 50;
 }
-.modal-card {
+.modal-card,
+.modal-content {
   background: var(--color-surface);
   border-radius: var(--radius);
   padding: 2rem;
@@ -647,6 +649,7 @@ a:hover {
   max-width: 440px;
   max-height: 90vh;
   overflow-y: auto;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15);
 }
 .modal-card-wide {
   max-width: 640px;
@@ -823,3 +826,81 @@ a:hover {
     flex-direction: column;
   }
 }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes toastSlideIn {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Speakable Word and Individual Speaker Icon Styles */
+.speakable-word-container {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  white-space: normal;
+  vertical-align: baseline;
+}
+
+.speakable-word-text {
+  display: inline;
+}
+
+.word-speaker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0 1px;
+  margin-left: 2px;
+  margin-right: 4px;
+  cursor: pointer;
+  color: #64748b;
+  opacity: 0.65;
+  border-radius: 4px;
+  vertical-align: middle;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  line-height: 1;
+}
+
+.word-speaker-btn:hover {
+  opacity: 1;
+  color: #059669;
+  transform: scale(1.25);
+}
+
+.word-speaker-btn:focus-visible {
+  outline: 2px solid #059669;
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+.word-speaker-btn:active {
+  transform: scale(0.95);
+}
+
+/* Light button variants for dark headers and banners */
+button.btn .word-speaker-btn,
+.btn-primary .word-speaker-btn,
+.btn-success .word-speaker-btn {
+  color: currentColor;
+  opacity: 0.85;
+}
+
+button.btn:hover .word-speaker-btn,
+.btn-primary:hover .word-speaker-btn {
+  color: currentColor;
+  opacity: 1;
+}
+

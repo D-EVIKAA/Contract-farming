@@ -1,5 +1,7 @@
 const Dispute = require("../models/Dispute");
 const Contract = require("../models/Contract");
+const User = require("../models/User");
+const { createNotification } = require("./notificationController");
 
 // @desc    Create a new dispute for a contract
 // @route   POST /api/disputes
@@ -31,6 +33,32 @@ const createDispute = async (req, res) => {
       description: description.trim(),
       status: "Open",
     });
+
+    // Notify the other contract party
+    const targetUserId = isBuyer ? contract.farmer : contract.buyer;
+    if (targetUserId) {
+      await createNotification(
+        targetUserId,
+        "Dispute Raised on Contract",
+        `A dispute ("${title.trim()}") was raised on contract ${contract.cropName} by ${req.user.name}.`,
+        "dispute_event",
+        contract._id,
+        dispute._id
+      );
+    }
+
+    // Notify System Admin accounts
+    const admins = await User.find({ role: "admin" });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        "New Contract Dispute Raised",
+        `New dispute "${title.trim()}" submitted by ${req.user.name} for contract ${contract.cropName}.`,
+        "dispute_event",
+        contract._id,
+        dispute._id
+      );
+    }
 
     return res.status(201).json({ message: "Dispute submitted successfully", dispute });
   } catch (error) {
@@ -113,6 +141,16 @@ const updateDisputeStatus = async (req, res) => {
     }
 
     await dispute.save();
+
+    // Trigger Notification for the user who raised the dispute
+    await createNotification(
+      dispute.raisedBy,
+      "Dispute Status Updated",
+      `Your dispute ("${dispute.title}") status was updated to '${status}' by Admin. Notes: "${dispute.resolutionDetails || 'None'}".`,
+      "dispute_event",
+      dispute.contract,
+      dispute._id
+    );
 
     return res.status(200).json({ message: "Dispute status updated by admin", dispute });
   } catch (error) {

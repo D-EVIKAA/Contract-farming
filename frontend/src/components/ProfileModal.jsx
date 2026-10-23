@@ -1,4 +1,5 @@
 import { useState } from "react";
+import api from "../services/api";
 import {
   updateMyProfile,
   uploadProfilePicture,
@@ -25,6 +26,52 @@ const ProfileModal = ({ user, onClose, onProfileUpdated }) => {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // Demo Aadhaar Verification States for existing users
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [aadhaarInput, setAadhaarInput] = useState("");
+  const [otpInput, setOtpInput] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [verifyingAadhaar, setVerifyingAadhaar] = useState(false);
+  const [aadhaarError, setAadhaarError] = useState("");
+
+  const handleSendOtp = async () => {
+    setAadhaarError("");
+    const clean = aadhaarInput.trim();
+    if (!/^\d{12}$/.test(clean)) {
+      setAadhaarError("Please enter a valid 12-digit Aadhaar number.");
+      return;
+    }
+    try {
+      await api.post("/auth/aadhaar/send-otp", { aadhaar: clean });
+      setOtpSent(true);
+    } catch (err) {
+      setAadhaarError(err.response?.data?.message || "Failed to generate demo OTP.");
+    }
+  };
+
+  const handleCompleteVerification = async () => {
+    setAadhaarError("");
+    const clean = aadhaarInput.trim();
+    if (!otpInput.trim()) {
+      setAadhaarError("Please enter the demo OTP (123456).");
+      return;
+    }
+    setVerifyingAadhaar(true);
+    try {
+      const { data } = await api.post("/auth/aadhaar/complete-verification", {
+        aadhaar: clean,
+        otp: otpInput.trim(),
+      });
+      setSuccess("Aadhaar verified successfully!");
+      setShowVerifyModal(false);
+      if (onProfileUpdated) onProfileUpdated(data.user);
+    } catch (err) {
+      setAadhaarError(err.response?.data?.message || "Verification failed.");
+    } finally {
+      setVerifyingAadhaar(false);
+    }
+  };
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -68,6 +115,11 @@ const ProfileModal = ({ user, onClose, onProfileUpdated }) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    if (file.size > 10 * 1024 * 1024) {
+      setError("File size exceeds the 10MB limit. Please choose a smaller image.");
+      return;
+    }
+
     const formData = new FormData();
     formData.append("image", file);
 
@@ -89,6 +141,11 @@ const ProfileModal = ({ user, onClose, onProfileUpdated }) => {
   const handleRolePhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError("File size exceeds the 10MB limit. Please choose a smaller image.");
+      return;
+    }
 
     const formData = new FormData();
     formData.append("photo", file);
@@ -114,16 +171,32 @@ const ProfileModal = ({ user, onClose, onProfileUpdated }) => {
     }
   };
 
-  const profileImgUrl = user?.profileImage
-    ? user.profileImage.startsWith("http")
-      ? user.profileImage
-      : `${SERVER_URL}${user.profileImage}`
-    : null;
+  const getImageUrl = (urlStr) => {
+    if (!urlStr) return null;
+    if (urlStr.startsWith("http://") || urlStr.startsWith("https://")) return urlStr;
+    return `${SERVER_URL}${urlStr.startsWith("/") ? "" : "/"}${urlStr}`;
+  };
+
+  const profileImgUrl = getImageUrl(user?.profileImage);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card modal-card-wide" onClick={(e) => e.stopPropagation()}>
-        <h2>My Profile ({user?.role?.toUpperCase()})</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2>My Profile ({user?.role?.toUpperCase()})</h2>
+          <span
+            style={{
+              padding: "0.25rem 0.75rem",
+              borderRadius: "12px",
+              fontSize: "0.8rem",
+              fontWeight: 600,
+              background: user?.verificationStatus === "Verified" ? "#dcfce7" : user?.verificationStatus === "Rejected" ? "#fee2e2" : "#fef3c7",
+              color: user?.verificationStatus === "Verified" ? "#15803d" : user?.verificationStatus === "Rejected" ? "#b91c1c" : "#b45309",
+            }}
+          >
+            {user?.verificationStatus === "Verified" ? "✓ Verified Account" : user?.verificationStatus === "Rejected" ? "Verification Rejected" : "Verification Pending"}
+          </span>
+        </div>
 
         {error && <div className="form-error">{error}</div>}
         {success && <div className="form-success">{success}</div>}
@@ -143,6 +216,32 @@ const ProfileModal = ({ user, onClose, onProfileUpdated }) => {
               {uploadingPic ? "Uploading..." : "Change Profile Picture"}
               <input type="file" accept="image/*" onChange={handleProfilePicUpload} disabled={uploadingPic} hidden />
             </label>
+          </div>
+        </div>
+        {/* Identity Verification Section (Aadhaar Demo Module) */}
+        <div style={{ background: "var(--bg-primary)", padding: "0.85rem 1rem", borderRadius: "8px", border: "1px solid var(--border-color)", margin: "0.75rem 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <h4 style={{ margin: "0 0 0.25rem 0", fontSize: "0.95rem" }}>🆔 Aadhaar Identity Verification</h4>
+              {user?.aadhaarVerified ? (
+                <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                  Aadhaar Status: <strong style={{ color: "#15803d" }}>✓ Verified</strong> (Aadhaar: XXXX-XXXX-{user.aadhaarLast4 || "1234"})
+                </p>
+              ) : (
+                <p style={{ margin: 0, fontSize: "0.85rem", color: "#b45309" }}>
+                  Aadhaar Status: <strong>⚠ Not Verified</strong>
+                </p>
+              )}
+            </div>
+            {!user?.aadhaarVerified && (
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={() => setShowVerifyModal(true)}
+              >
+                Verify Aadhaar
+              </button>
+            )}
           </div>
         </div>
 
@@ -189,7 +288,7 @@ const ProfileModal = ({ user, onClose, onProfileUpdated }) => {
                 </label>
                 <div className="photo-grid">
                   {user?.farmDetails?.farmPhotos?.map((photo, idx) => (
-                    <img key={idx} src={`${SERVER_URL}${photo}`} alt="Farm" className="photo-thumb" />
+                    <img key={idx} src={getImageUrl(photo)} alt="Farm" className="photo-thumb" />
                   ))}
                 </div>
               </div>
@@ -212,7 +311,7 @@ const ProfileModal = ({ user, onClose, onProfileUpdated }) => {
                 </label>
                 <div className="photo-grid">
                   {user?.businessPhotos?.map((photo, idx) => (
-                    <img key={idx} src={`${SERVER_URL}${photo}`} alt="Business" className="photo-thumb" />
+                    <img key={idx} src={getImageUrl(photo)} alt="Business" className="photo-thumb" />
                   ))}
                 </div>
               </div>
@@ -229,6 +328,75 @@ const ProfileModal = ({ user, onClose, onProfileUpdated }) => {
           </div>
         </form>
       </div>
+
+      {/* DEMO AADHAAR VERIFICATION MODAL FOR EXISTING USERS */}
+      {showVerifyModal && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }} onClick={() => setShowVerifyModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h2>🆔 Aadhaar Identity Verification (Demo)</h2>
+            <p className="auth-subtitle">Verify your 12-digit Aadhaar number using local demo OTP.</p>
+
+            {aadhaarError && <div className="form-error">{aadhaarError}</div>}
+
+            <label className="field">
+              <span>12-Digit Aadhaar Number</span>
+              <input
+                type="text"
+                maxLength={12}
+                placeholder="Enter 12-digit Aadhaar"
+                value={aadhaarInput}
+                onChange={(e) => setAadhaarInput(e.target.value.replace(/\D/g, ""))}
+                disabled={otpSent}
+              />
+            </label>
+
+            {!otpSent ? (
+              <button
+                type="button"
+                className="btn btn-outline btn-block"
+                onClick={handleSendOtp}
+                disabled={aadhaarInput.length !== 12}
+                style={{ marginTop: "0.5rem" }}
+              >
+                Send Demo OTP
+              </button>
+            ) : (
+              <>
+                <label className="field" style={{ marginTop: "0.5rem" }}>
+                  <span>Demo OTP (Use: <strong>123456</strong>)</span>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="Enter demo OTP (123456)"
+                    value={otpInput}
+                    onChange={(e) => setOtpInput(e.target.value)}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  className="btn btn-primary btn-block"
+                  onClick={handleCompleteVerification}
+                  disabled={verifyingAadhaar}
+                  style={{ marginTop: "0.75rem" }}
+                >
+                  {verifyingAadhaar ? "Verifying..." : "Complete Aadhaar Verification"}
+                </button>
+              </>
+            )}
+
+            <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.75rem", marginBottom: 0 }}>
+              ℹ️ Demo/Sandbox verification only. This local application does not perform real UIDAI verification.
+            </p>
+
+            <div className="modal-actions" style={{ marginTop: "1rem" }}>
+              <button type="button" className="btn btn-outline" onClick={() => setShowVerifyModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
