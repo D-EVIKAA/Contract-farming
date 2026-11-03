@@ -13,6 +13,7 @@ const adminRoutes = require("./routes/adminRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 
 // Load environment variables from .env
+dotenv.config({ path: path.join(__dirname, ".env") });
 dotenv.config();
 
 // Connect to MongoDB
