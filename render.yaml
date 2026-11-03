@@ -1,0 +1,46 @@
+services:
+  # Backend Node/Express Web Service
+  - type: web
+    name: contract-farming-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: ADMIN_NAME
+        value: System Admin
+      - key: ADMIN_EMAIL
+        value: admin@contractfarming.com
+      - key: ADMIN_PASSWORD
+        value: admin123
+      - key: FRONTEND_URL
+        sync: false
+      - key: AADHAAR_PROVIDER_MODE
+        value: sandbox
+      - key: PAYMENT_GATEWAY_MODE
+        value: sandbox
+
+  # Frontend Static Site
+  - type: web
+    name: contract-farming-frontend
+    env: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
