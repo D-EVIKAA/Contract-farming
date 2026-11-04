@@ -26,6 +26,19 @@ app.use(cors());
 app.use(express.json({ limit: "15mb" })); // allows Express to read JSON request bodies up to 15MB
 app.use(express.urlencoded({ limit: "15mb", extended: true }));
 
+// Ensure DB is connected before handling any API request
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    return res.status(500).json({
+      message: "Database connection failed",
+      error: err.message,
+    });
+  }
+});
+
 // Static file serving for uploads directory
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
